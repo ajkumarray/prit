@@ -1,0 +1,58 @@
+name: Sync playlist
+
+# The schedule lives here rather than inside the app because Render's free tier
+# sleeps an idle service, and a sleeping process runs no cron. GitHub always
+# wakes up; the commit it pushes is what triggers the redeploy.
+on:
+  schedule:
+    # 18:30 UTC = 00:00 IST. GitHub cron has no timezone support, and may fire
+    # a few minutes late when the runner queue is busy.
+    - cron: '30 18 * * *'
+  workflow_dispatch: # lets you run it by hand from the Actions tab
+
+# Needed to push the refreshed playlist back to master.
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-playlist
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # No `npm ci` — the sync script is dependency-free on purpose, so this
+      # job stays fast and can't be broken by an unrelated package bump.
+      - name: Sync playlist from Spotify
+        env:
+          SPOTIFY_PLAYLIST: ${{ vars.SPOTIFY_PLAYLIST }}
+          SPOTIFY_CLIENT_ID: ${{ secrets.SPOTIFY_CLIENT_ID }}
+          SPOTIFY_CLIENT_SECRET: ${{ secrets.SPOTIFY_CLIENT_SECRET }}
+          # Without this the run falls back to the 100-track embed: Spotify
+          # rejects app-only tokens on playlist reads. `npm run spotify-auth`.
+          SPOTIFY_REFRESH_TOKEN: ${{ secrets.SPOTIFY_REFRESH_TOKEN }}
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+        run: npm run sync
+
+      - name: Commit if the playlist changed
+        run: |
+          if git diff --quiet -- data/playlist.json; then
+            echo "No change — nothing to commit."
+            exit 0
+          fi
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/playlist.json
+          git commit -m "chore: sync playlist $(date -u +%Y-%m-%d)"
+          git push

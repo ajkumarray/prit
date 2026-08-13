@@ -1,0 +1,10 @@
+node_modules
+.next
+out
+.env
+.env.local
+.DS_Store
+*.log
+
+# data/playlist.json is deliberately NOT ignored — it is the deploy artifact
+# the nightly sync commits, and what the app serves on boot.

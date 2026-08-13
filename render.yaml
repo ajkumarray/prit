@@ -1,0 +1,22 @@
+# Render blueprint. Point Render at this repo and it picks these settings up.
+services:
+  - type: web
+    name: prit-radio
+    runtime: node
+    plan: free
+    branch: master
+    # Every push to master redeploys — including the nightly playlist commit
+    # from the sync workflow.
+    autoDeploy: true
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/playlist
+    envVars:
+      - key: NODE_VERSION
+        value: 22
+      - key: SPOTIFY_PLAYLIST
+        value: 0BYFO12JqbeR5S2sWTUjRU
+      # Set this in the Render dashboard to require a token on /api/sync.
+      # Leave unset and the in-app sync button works for anyone who visits.
+      - key: SYNC_TOKEN
+        sync: false
