@@ -430,15 +430,31 @@ export async function runSync({ playlist, log = () => {} } = {}) {
 
   log(`→ Spotify playlist ${playlistId}`)
   const canUseApi = Boolean(token || (clientId && clientSecret))
-  const { name, tracks, source, capped } = canUseApi
-    ? await fetchViaApi(playlistId, { token, clientId, clientSecret, refreshToken })
-    : await fetchViaEmbed(playlistId)
+  // A client_credentials token (client id/secret with no refresh token) always
+  // answers 403 on playlist reads — Spotify requires a user behind the token.
+  // That combination can't ever succeed, so treat its failure as expected and
+  // fall back to the embed instead of failing the whole run. A refresh token
+  // or ready-made bearer token failing is a real error and still throws.
+  const canFallBack = !token && !refreshToken
+  let name, tracks, source, capped
+  try {
+    ;({ name, tracks, source, capped } = canUseApi
+      ? await fetchViaApi(playlistId, { token, clientId, clientSecret, refreshToken })
+      : await fetchViaEmbed(playlistId))
+  } catch (err) {
+    if (!canUseApi || !canFallBack) throw err
+    log(`  ! Official API failed without a user token: ${err.message}`)
+    log('    Falling back to the public embed (capped at 100 tracks).')
+    ;({ name, tracks, source, capped } = await fetchViaEmbed(playlistId))
+  }
   log(`  "${name}" — ${tracks.length} tracks (via ${source})`)
 
   if (capped) {
     log(
       '  ! The embed returns at most 100 tracks, so a longer playlist is cut off here.\n' +
-        '    Set SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET to page through all of it.',
+        (canFallBack
+          ? '    Add SPOTIFY_REFRESH_TOKEN ("npm run spotify-auth") to page through all of it.'
+          : '    Set SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET to page through all of it.'),
     )
   }
 
