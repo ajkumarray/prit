@@ -11,6 +11,12 @@ npm run dev
 
 Next.js (App Router) + Tailwind. No database, no credentials required.
 
+> **Currently capped at 100 tracks.** Sync doesn't have a working
+> `SPOTIFY_REFRESH_TOKEN` (see below), so it runs on Spotify's public embed
+> page instead of the official API — which returns at most the first 100
+> tracks of the Prit playlist's 256. Every sync (nightly and manual) will
+> stay capped until a refresh token is added.
+
 ## How it works
 
 Spotify has no API for *playing* audio you don't own, and its playlist API can't
@@ -60,7 +66,8 @@ token doesn't expire, and sync trades it for a fresh access token on each run.
 
 For the nightly job, add all three to the repo's **Settings → Secrets → Actions**:
 `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET`, `SPOTIFY_REFRESH_TOKEN`. Without
-the third, the workflow silently falls back to the 100-track embed.
+the third, the workflow falls back to the 100-track embed — which is this
+repo's current state: the first two are set, the refresh token isn't.
 
 There's also `SPOTIFY_TOKEN` for a ready-made bearer token, handy for a one-off
 run — but these expire within the hour, so don't build on one. Sync says so
